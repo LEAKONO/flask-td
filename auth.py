@@ -1,14 +1,16 @@
 from flask import Blueprint, request, jsonify
 from models import db, User
-import jwt
+from flask_jwt_extended import create_access_token
 import datetime
-from config import Config
 
 auth = Blueprint('auth', __name__)
 
 @auth.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify(message="User already exists"), 409
+
     user = User(username=data['username'], email=data['email'])
     user.set_password(data['password'])
     db.session.add(user)
@@ -20,9 +22,6 @@ def login():
     data = request.get_json()
     user = User.query.filter_by(email=data['email']).first()
     if user and user.check_password(data['password']):
-        token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-        }, Config.JWT_SECRET_KEY, algorithm="HS256")
+        token = create_access_token(identity=user.id, expires_delta=datetime.timedelta(hours=1))
         return jsonify(token=token)
     return jsonify(message="Invalid credentials"), 401
